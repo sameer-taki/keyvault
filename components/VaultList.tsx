@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { VaultItemType } from "@/lib/database.types";
 import {
   displayTitle,
@@ -30,6 +30,22 @@ export default function VaultList() {
   const [newMenu, setNewMenu] = useState(false);
   const [panel, setPanel] = useState<"health" | "backup" | null>(null);
   const [editing, setEditing] = useState<ItemDraft | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" or Cmd/Ctrl+K focuses search (unless already typing somewhere).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing =
+        t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable === true;
+      if ((e.key === "/" && !typing) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   async function handleImport(drafts: ItemDraft[]): Promise<number> {
     let n = 0;
@@ -59,8 +75,9 @@ export default function VaultList() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <input
+          ref={searchRef}
           type="search"
-          placeholder="Search your vault…"
+          placeholder="Search your vault…  ( / )"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900"
@@ -111,7 +128,20 @@ export default function VaultList() {
       )}
 
       {loading ? (
-        <p className="py-8 text-center text-slate-500">Decrypting your vault…</p>
+        <ul className="space-y-2" aria-hidden>
+          {[0, 1, 2, 3].map((i) => (
+            <li
+              key={i}
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+            >
+              <span className="h-6 w-6 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
+              <span className="flex-1 space-y-2">
+                <span className="block h-3 w-1/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <span className="block h-2.5 w-1/2 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : filtered.length === 0 ? (
         <p className="py-8 text-center text-slate-500">
           {items.length === 0 ? "Your vault is empty. Add your first item." : "No matches."}

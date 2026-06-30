@@ -3,6 +3,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { VaultProvider, useVault } from "./VaultProvider";
 import VaultGate from "./VaultGate";
+import ThemeToggle from "./ThemeToggle";
 
 /** Top-level client shell for the /vault route: provider + header + gated content. */
 export default function VaultWorkspace({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                 Lock
               </button>
             )}
+            <ThemeToggle />
             <UserButton />
           </div>
         </div>
