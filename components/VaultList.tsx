@@ -14,6 +14,7 @@ import { useVaultItems } from "./useVaultItems";
 import ItemEditor from "./ItemEditor";
 import HealthPanel from "./HealthPanel";
 import BackupPanel from "./BackupPanel";
+import SecurityPanel from "./SecurityPanel";
 import CopyButton from "./CopyButton";
 
 const TYPE_ICON: Record<VaultItemType, string> = {
@@ -28,7 +29,7 @@ export default function VaultList() {
   const { items, loading, error, failedCount, saveItem, removeItem } = useVaultItems();
   const [query, setQuery] = useState("");
   const [newMenu, setNewMenu] = useState(false);
-  const [panel, setPanel] = useState<"health" | "backup" | null>(null);
+  const [panel, setPanel] = useState<"health" | "backup" | "security" | null>(null);
   const [editing, setEditing] = useState<ItemDraft | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +89,9 @@ export default function VaultList() {
         <button onClick={() => setPanel((p) => (p === "backup" ? null : "backup"))} className={secondaryBtn}>
           Backup
         </button>
+        <button onClick={() => setPanel((p) => (p === "security" ? null : "security"))} className={secondaryBtn}>
+          Security
+        </button>
         <div className="relative">
           <button
             onClick={() => setNewMenu((v) => !v)}
@@ -117,6 +121,7 @@ export default function VaultList() {
 
       {panel === "health" && <HealthPanel items={items} />}
       {panel === "backup" && <BackupPanel items={items} onImport={handleImport} />}
+      {panel === "security" && <SecurityPanel />}
 
       {failedCount > 0 && (
         <p className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">

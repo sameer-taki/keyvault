@@ -30,6 +30,25 @@ export async function createProfile(
   return data;
 }
 
+/**
+ * Updates the current user's profile (used when rotating the master password).
+ * RLS scopes this to the single own row, so no explicit filter is needed; the
+ * not-null filter on user_id just satisfies PostgREST's "update needs a filter".
+ */
+export async function updateProfile(
+  supabase: VaultSupabaseClient,
+  input: NewProfile,
+): Promise<ProfileRow> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(input)
+    .not("user_id", "is", null)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export interface ItemWrite {
   type: VaultItemType;
   folder: string | null;

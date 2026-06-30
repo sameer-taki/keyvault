@@ -180,6 +180,27 @@ export async function unwrapVaultKey(wrapped: CipherBlob, masterKey: CryptoKey):
   ]);
 }
 
+/**
+ * Re-wraps the vault key under a NEW master key without changing the vault key
+ * itself — used when the user changes their master password. The wrapped blob is
+ * decrypted with the old master key (a throw means the current password was wrong)
+ * and re-encrypted with the new master key. The raw vault-key material exists only
+ * transiently as bytes here; it is never imported as an extractable key, persisted,
+ * or transmitted. Because the vault key is unchanged, existing items stay decryptable
+ * and nothing needs to be re-encrypted.
+ *
+ * This is key MANAGEMENT within the existing hierarchy (master pw -> master key ->
+ * wraps vault key); it does NOT alter the key hierarchy or the KDF.
+ */
+export async function rewrapVaultKey(
+  wrapped: CipherBlob,
+  oldMasterKey: CryptoKey,
+  newMasterKey: CryptoKey,
+): Promise<CipherBlob> {
+  const raw = await decryptBytes(wrapped, oldMasterKey);
+  return encryptBytes(raw, newMasterKey);
+}
+
 // --- item encryption --------------------------------------------------------
 
 /** Encrypts a UTF-8 string (e.g. JSON.stringify(item)) with the vault key. */

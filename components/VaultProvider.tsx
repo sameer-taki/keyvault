@@ -10,12 +10,13 @@ import {
   useState,
 } from "react";
 import { useSupabaseClient } from "@/lib/supabase";
-import { createProfile, fetchProfile } from "@/lib/vault-data";
+import { createProfile, fetchProfile, updateProfile } from "@/lib/vault-data";
 import {
   deriveMasterKey,
   generateVaultKey,
   KDF_PARAMS,
   newSalt,
+  rewrapVaultKey,
   unwrapVaultKey,
   wrapVaultKey,
 } from "@/lib/vault-crypto";
@@ -47,6 +48,13 @@ interface VaultContextValue {
   setupVault: (masterPassword: string) => Promise<void>;
   /** Re-derive + unwrap with the master password. Throws WrongMasterPasswordError. */
   unlock: (masterPassword: string) => Promise<void>;
+  /**
+   * Rotate the master password. Verifies the current password, re-wraps the SAME
+   * vault key under the new one (items stay decryptable), and updates the profile.
+   * Throws WrongMasterPasswordError if the current password is wrong. Requires an
+   * unlocked vault.
+   */
+  changeMasterPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   /** Drop the vault key from memory and return to the locked screen. */
   lock: () => void;
 }
@@ -121,6 +129,32 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     [profile],
   );
 
+  const changeMasterPassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!profile) throw new Error("No vault profile loaded.");
+      const oldMasterKey = await deriveMasterKey(currentPassword, profile.salt, profile.kdf);
+      const freshSalt = newSalt();
+      const newMasterKey = await deriveMasterKey(newPassword, freshSalt, KDF_PARAMS);
+
+      let rewrapped;
+      try {
+        rewrapped = await rewrapVaultKey(profile.wrapped_vault_key, oldMasterKey, newMasterKey);
+      } catch {
+        // Old master key failed to unwrap => current password was wrong.
+        throw new WrongMasterPasswordError();
+      }
+
+      const row = await updateProfile(supabase, {
+        salt: freshSalt,
+        wrapped_vault_key: rewrapped,
+        kdf: KDF_PARAMS,
+      });
+      setProfile(row);
+      // vaultKey in memory is unchanged and still valid — vault stays unlocked.
+    },
+    [profile, supabase],
+  );
+
   // --- Auto-lock: idle timeout + lock when the tab is backgrounded/closed ----
   const lockRef = useRef(lock);
   lockRef.current = lock;
@@ -151,8 +185,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [status]);
 
   const value = useMemo<VaultContextValue>(
-    () => ({ status, loadError, vaultKey, setupVault, unlock, lock }),
-    [status, loadError, vaultKey, setupVault, unlock, lock],
+    () => ({ status, loadError, vaultKey, setupVault, unlock, changeMasterPassword, lock }),
+    [status, loadError, vaultKey, setupVault, unlock, changeMasterPassword, lock],
   );
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

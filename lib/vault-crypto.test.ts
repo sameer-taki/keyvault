@@ -6,6 +6,7 @@ import {
   generateVaultKey,
   KDF_PARAMS,
   newSalt,
+  rewrapVaultKey,
   unwrapVaultKey,
   wrapVaultKey,
   type CipherBlob,
@@ -80,6 +81,29 @@ describe("vault key wrapping", () => {
     const wrongMasterKey = await deriveMasterKey("the WRONG password", salt, FAST_KDF);
 
     await expect(unwrapVaultKey(wrapped, wrongMasterKey)).rejects.toThrow();
+  });
+
+  it("rewraps under a new master password: same vault key, items still decrypt", async () => {
+    const oldPw = "old master password";
+    const { salt, vaultKey, wrapped } = await setupVault(oldPw);
+    const blob = await encrypt("data encrypted before rotation", vaultKey);
+
+    const oldMasterKey = await deriveMasterKey(oldPw, salt, FAST_KDF);
+    const newSaltValue = newSalt();
+    const newMasterKey = await deriveMasterKey("new master password", newSaltValue, FAST_KDF);
+    const rewrapped = await rewrapVaultKey(wrapped, oldMasterKey, newMasterKey);
+
+    // New password unwraps and decrypts the pre-rotation data; old password no longer works.
+    const reVaultKey = await unwrapVaultKey(rewrapped, newMasterKey);
+    expect(await decrypt(blob, reVaultKey)).toBe("data encrypted before rotation");
+    await expect(unwrapVaultKey(rewrapped, oldMasterKey)).rejects.toThrow();
+  });
+
+  it("rewrap throws when the current (old) master password is wrong", async () => {
+    const { salt, wrapped } = await setupVault("the right password");
+    const wrongOld = await deriveMasterKey("WRONG", salt, FAST_KDF);
+    const newMasterKey = await deriveMasterKey("whatever", newSalt(), FAST_KDF);
+    await expect(rewrapVaultKey(wrapped, wrongOld, newMasterKey)).rejects.toThrow();
   });
 
   it("the unwrapped vault key is non-extractable", async () => {
