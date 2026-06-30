@@ -11,6 +11,17 @@ browser; the server only ever stores ciphertext and non-secret metadata.
 > The master password is **separate** from your Clerk login and is **never** sent anywhere.
 > A lost master password is **unrecoverable by design.**
 
+## Features
+
+- Master-password unlock with Argon2id key derivation; vault key held in memory only.
+- Auto-lock on idle, tab-hide, and tab-close.
+- Items: logins, secure notes, cards, secrets — all encrypted client-side (only `type` and
+  `folder` are stored as plaintext metadata).
+- In-memory search, crypto-backed password generator, and edit/delete with optimistic UI.
+- Client-side vault-health report (weak / reused / old credentials).
+- Password-protected **encrypted export/import** (no plaintext ever written to the file).
+- Strict security headers + CSP; no analytics, no secret logging.
+
 ## Getting started
 
 ```bash

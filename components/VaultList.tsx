@@ -12,6 +12,8 @@ import {
 } from "@/lib/items";
 import { useVaultItems } from "./useVaultItems";
 import ItemEditor from "./ItemEditor";
+import HealthPanel from "./HealthPanel";
+import BackupPanel from "./BackupPanel";
 
 const TYPE_ICON: Record<VaultItemType, string> = {
   login: "🔑",
@@ -25,7 +27,17 @@ export default function VaultList() {
   const { items, loading, error, failedCount, saveItem, removeItem } = useVaultItems();
   const [query, setQuery] = useState("");
   const [newMenu, setNewMenu] = useState(false);
+  const [panel, setPanel] = useState<"health" | "backup" | null>(null);
   const [editing, setEditing] = useState<ItemDraft | null>(null);
+
+  async function handleImport(drafts: ItemDraft[]): Promise<number> {
+    let n = 0;
+    for (const d of drafts) {
+      await saveItem(d);
+      n += 1;
+    }
+    return n;
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -52,6 +64,12 @@ export default function VaultList() {
           onChange={(e) => setQuery(e.target.value)}
           className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-900"
         />
+        <button onClick={() => setPanel((p) => (p === "health" ? null : "health"))} className={secondaryBtn}>
+          Health
+        </button>
+        <button onClick={() => setPanel((p) => (p === "backup" ? null : "backup"))} className={secondaryBtn}>
+          Backup
+        </button>
         <div className="relative">
           <button
             onClick={() => setNewMenu((v) => !v)}
@@ -78,6 +96,9 @@ export default function VaultList() {
           )}
         </div>
       </div>
+
+      {panel === "health" && <HealthPanel items={items} />}
+      {panel === "backup" && <BackupPanel items={items} onImport={handleImport} />}
 
       {failedCount > 0 && (
         <p className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
@@ -132,6 +153,9 @@ export default function VaultList() {
     </div>
   );
 }
+
+const secondaryBtn =
+  "rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800";
 
 function subtitle(it: DecryptedItem): string {
   switch (it.type) {
