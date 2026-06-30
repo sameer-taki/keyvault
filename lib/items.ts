@@ -38,6 +38,8 @@ interface Base {
   id: string;
   folder: string | null;
   updatedAt: string;
+  /** Set when the item belongs to a shared collection (Phase 6); null = personal. */
+  collectionId: string | null;
 }
 
 /** A fully decrypted item, discriminated by `type`. */
@@ -55,6 +57,8 @@ export interface ItemDraft {
   content: ItemContent;
   /** ISO timestamp for existing items; absent for new drafts. */
   updatedAt?: string;
+  /** Target scope: a collection id to share, or null/undefined for personal. */
+  collectionId?: string | null;
 }
 
 export const ITEM_TYPE_LABELS: Record<VaultItemType, string> = {
@@ -102,7 +106,12 @@ export async function decryptRow(
   vaultKey: CryptoKey,
 ): Promise<DecryptedItem> {
   const content = JSON.parse(await decrypt(row.blob, vaultKey)) as ItemContent;
-  const base: Base = { id: row.id, folder: row.folder, updatedAt: row.updated_at };
+  const base: Base = {
+    id: row.id,
+    folder: row.folder,
+    updatedAt: row.updated_at,
+    collectionId: row.collection_id,
+  };
   // row.type is the source of truth for the discriminant.
   return { ...base, type: row.type, content } as DecryptedItem;
 }

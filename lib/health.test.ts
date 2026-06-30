@@ -8,6 +8,7 @@ function login(id: string, password: string, updatedAt: string): DecryptedItem {
     type: "login",
     folder: null,
     updatedAt,
+    collectionId: null,
     content: { title: id, username: "", password, url: "", notes: "" },
   };
 }
@@ -22,6 +23,7 @@ describe("computeHealth", () => {
       type: "note",
       folder: null,
       updatedAt: RECENT,
+      collectionId: null,
       content: { title: "n", body: "x" },
     };
     expect(computeHealth([], NOW).score).toBe(100);

@@ -53,6 +53,9 @@ export interface ItemWrite {
   type: VaultItemType;
   folder: string | null;
   blob: CipherBlob;
+  /** Sharing scope (Phase 6). Both null for personal items. */
+  org_id?: string | null;
+  collection_id?: string | null;
 }
 
 /** Lists the current user's encrypted items, newest first. */

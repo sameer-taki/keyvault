@@ -62,6 +62,7 @@ describe("display + search helpers", () => {
     type: "login",
     folder: "Personal",
     updatedAt: "2026-06-01T00:00:00Z",
+    collectionId: null,
     content: login,
   };
 

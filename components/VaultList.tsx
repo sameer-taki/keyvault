@@ -15,7 +15,9 @@ import ItemEditor from "./ItemEditor";
 import HealthPanel from "./HealthPanel";
 import BackupPanel from "./BackupPanel";
 import SecurityPanel from "./SecurityPanel";
+import CollectionsPanel from "./CollectionsPanel";
 import CopyButton from "./CopyButton";
+import { useSharing } from "./SharingProvider";
 
 const TYPE_ICON: Record<VaultItemType, string> = {
   login: "🔑",
@@ -27,9 +29,20 @@ const TYPES: VaultItemType[] = ["login", "note", "card", "secret"];
 
 export default function VaultList() {
   const { items, loading, error, failedCount, saveItem, removeItem } = useVaultItems();
+  const { collections, collectionKeys } = useSharing();
   const [query, setQuery] = useState("");
   const [newMenu, setNewMenu] = useState(false);
-  const [panel, setPanel] = useState<"health" | "backup" | "security" | null>(null);
+  const [panel, setPanel] = useState<"health" | "backup" | "security" | "collections" | null>(null);
+
+  // Collections the user can write into (holds the key), and a name lookup.
+  const writableCollections = useMemo(
+    () => collections.filter((c) => collectionKeys.has(c.id)).map((c) => ({ id: c.id, name: c.name })),
+    [collections, collectionKeys],
+  );
+  const collectionName = useMemo(
+    () => new Map(collections.map((c) => [c.id, c.name] as const)),
+    [collections],
+  );
   const [editing, setEditing] = useState<ItemDraft | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
   const [sort, setSort] = useState<"recent" | "title">("recent");
@@ -98,6 +111,7 @@ export default function VaultList() {
       folder: it.folder,
       content: it.content,
       updatedAt: it.updatedAt,
+      collectionId: it.collectionId,
     });
   }
 
@@ -120,6 +134,12 @@ export default function VaultList() {
         </button>
         <button onClick={() => setPanel((p) => (p === "security" ? null : "security"))} className={secondaryBtn}>
           Security
+        </button>
+        <button
+          onClick={() => setPanel((p) => (p === "collections" ? null : "collections"))}
+          className={secondaryBtn}
+        >
+          Collections
         </button>
         <select
           value={sort}
@@ -169,6 +189,7 @@ export default function VaultList() {
       {panel === "health" && <HealthPanel items={items} />}
       {panel === "backup" && <BackupPanel items={items} onImport={handleImport} />}
       {panel === "security" && <SecurityPanel />}
+      {panel === "collections" && <CollectionsPanel />}
 
       {failedCount > 0 && (
         <p className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
@@ -232,6 +253,11 @@ export default function VaultList() {
                   <span className="block truncate font-medium">{displayTitle(it)}</span>
                   <span className="block truncate text-xs text-slate-500">{subtitle(it)}</span>
                 </span>
+                {it.collectionId && (
+                  <span className="rounded bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
+                    👥 {collectionName.get(it.collectionId) ?? "Shared"}
+                  </span>
+                )}
                 {it.folder && (
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800">
                     {it.folder}
@@ -251,6 +277,7 @@ export default function VaultList() {
           key={editing.id ?? "new"}
           initial={editing}
           folders={folders}
+          collections={writableCollections}
           onSave={saveItem}
           onDelete={editing.id ? () => removeItem(editing.id!) : undefined}
           onClose={() => setEditing(null)}

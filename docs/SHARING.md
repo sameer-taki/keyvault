@@ -53,15 +53,28 @@ sees nothing; private keys are never visible to other members; cross-member writ
 - Ensure the session token includes org claims (`org_id`, `org_role`) when an org is active —
   RLS depends on `auth.jwt()->>'org_id'`.
 
-## Remaining increment (UI)
+## UI (implemented)
 
-1. `OrganizationSwitcher` in the vault header; a member-key bootstrap (generate keypair on first
-   org use, store public + wrapped-private).
-2. Collections list + "New collection"; share/unshare members (wrap the collection key to each
-   member's public key).
-3. Item editor: choose Personal vs a Collection; route encryption through the collection key when
-   shared.
-4. Health/search across personal + shared scopes.
+- **`SharingProvider`** (`components/SharingProvider.tsx`) mounts inside the unlocked vault. On
+  first use it **bootstraps the member keypair** (generate → wrap the private key under the vault
+  key → store public + wrapped-private), then loads collections and unwraps the collection keys the
+  user holds. The private key lives in memory only.
+- **`CollectionsPanel`** — Clerk `<OrganizationSwitcher/>`, create a collection (generates a
+  collection key, wraps it to yourself), and share it with an org member (looks up their public key
+  and wraps the collection key to them). Reached via the "Collections" toolbar button.
+- **Item editor** has a "Save to" selector (Personal vs a collection); `useVaultItems` routes
+  encryption through the collection key for shared items and decrypts each row with the right key.
+  Shared items show a 👥 badge in the list.
+
+**Needs live Clerk Organizations to exercise end-to-end** (the RLS depends on the `org_id` session
+claim, and member listing uses Clerk's org memberships). The crypto and RLS beneath are unit- and
+Postgres-verified; the UI is code-complete and builds, but hasn't been run against a real org yet.
+
+## Remaining / nice-to-have
+
+- Unshare (remove member) UI — the data layer (`removeCollectionMember`) exists; no button yet.
+- Collection-key rotation on member removal.
+- Gate member add/remove by Clerk `org_role` (admin) before non-personal use.
 
 ## Notes / decisions to confirm
 

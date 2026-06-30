@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSupabaseClient } from "@/lib/supabase";
 import { useVaultKey } from "./VaultProvider";
+import { useSharing } from "./SharingProvider";
 import {
   createItem,
   deleteItem as deleteItemRow,
   listItems,
   updateItem,
+  type ItemWrite,
 } from "@/lib/vault-data";
 import { decryptRow, encryptContent, type DecryptedItem, type ItemDraft } from "@/lib/items";
 
@@ -25,11 +27,19 @@ interface UseVaultItems {
 export function useVaultItems(): UseVaultItems {
   const supabase = useSupabaseClient();
   const vaultKey = useVaultKey();
+  const { collectionKeys, keysVersion, getCollection } = useSharing();
   const [items, setItems] = useState<DecryptedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [failedCount, setFailedCount] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
+
+  // The right key for a row: the collection key for shared items, else the vault key.
+  const keyFor = useCallback(
+    (collectionId: string | null): CryptoKey | undefined =>
+      collectionId ? collectionKeys.get(collectionId) : vaultKey,
+    [collectionKeys, vaultKey],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -41,8 +51,14 @@ export function useVaultItems(): UseVaultItems {
         const decrypted: DecryptedItem[] = [];
         let failed = 0;
         for (const row of rows) {
+          const key = keyFor(row.collection_id);
+          if (!key) {
+            // A shared item whose collection key we don't hold yet — count, don't crash.
+            failed += 1;
+            continue;
+          }
           try {
-            decrypted.push(await decryptRow(row, vaultKey));
+            decrypted.push(await decryptRow(row, key));
           } catch {
             failed += 1;
           }
@@ -60,14 +76,25 @@ export function useVaultItems(): UseVaultItems {
     return () => {
       cancelled = true;
     };
-  }, [supabase, vaultKey, reloadKey]);
+  }, [supabase, keyFor, reloadKey, keysVersion]);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   const saveItem = useCallback(
     async (draft: ItemDraft) => {
-      const blob = await encryptContent(draft.content, vaultKey);
-      const write = { type: draft.type, folder: draft.folder, blob };
+      const collectionId = draft.collectionId ?? null;
+      const key = keyFor(collectionId);
+      if (!key) throw new Error("Missing encryption key for the selected collection.");
+      const orgId = collectionId ? (getCollection(collectionId)?.org_id ?? null) : null;
+
+      const blob = await encryptContent(draft.content, key);
+      const write: ItemWrite = {
+        type: draft.type,
+        folder: draft.folder,
+        blob,
+        org_id: orgId,
+        collection_id: collectionId,
+      };
 
       if (draft.id) {
         // Optimistic update: apply locally, reconcile or revert.
@@ -76,13 +103,19 @@ export function useVaultItems(): UseVaultItems {
         setItems((cur) =>
           cur.map((it) =>
             it.id === id
-              ? ({ ...it, type: draft.type, folder: draft.folder, content: draft.content } as DecryptedItem)
+              ? ({
+                  ...it,
+                  type: draft.type,
+                  folder: draft.folder,
+                  content: draft.content,
+                  collectionId,
+                } as DecryptedItem)
               : it,
           ),
         );
         try {
           const row = await updateItem(supabase, id, write);
-          const fresh = await decryptRow(row, vaultKey);
+          const fresh = await decryptRow(row, key);
           setItems((cur) => cur.map((it) => (it.id === id ? fresh : it)));
         } catch (e) {
           setItems(prev);
@@ -90,11 +123,11 @@ export function useVaultItems(): UseVaultItems {
         }
       } else {
         const row = await createItem(supabase, write);
-        const fresh = await decryptRow(row, vaultKey);
+        const fresh = await decryptRow(row, key);
         setItems((cur) => [fresh, ...cur]);
       }
     },
-    [items, supabase, vaultKey],
+    [items, supabase, keyFor, getCollection],
   );
 
   const removeItem = useCallback(

@@ -51,14 +51,24 @@ interface Props {
   onClose: () => void;
   /** Existing folder names, for autocomplete. */
   folders?: string[];
+  /** Collections the user can save into (Phase 6). */
+  collections?: { id: string; name: string }[];
 }
 
-export default function ItemEditor({ initial, onSave, onDelete, onClose, folders = [] }: Props) {
+export default function ItemEditor({
+  initial,
+  onSave,
+  onDelete,
+  onClose,
+  folders = [],
+  collections = [],
+}: Props) {
   // All content fields are strings; edit as a flat record and cast on save.
   const [fields, setFields] = useState<Record<string, string>>(
     () => ({ ...(initial.content as unknown as Record<string, string>) }),
   );
   const [folder, setFolder] = useState(initial.folder ?? "");
+  const [collectionId, setCollectionId] = useState<string | null>(initial.collectionId ?? null);
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [genFor, setGenFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -141,6 +151,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose, folders
         type: initial.type,
         folder: folder.trim() || null,
         content: fields as unknown as ItemContent,
+        collectionId,
       });
       onClose();
     } catch (err) {
@@ -273,6 +284,27 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose, folders
             )}
           </div>
         ))}
+
+        {collections.length > 0 && (
+          <div className="space-y-1">
+            <label htmlFor="scope" className="text-sm font-medium">
+              Save to
+            </label>
+            <select
+              id="scope"
+              value={collectionId ?? ""}
+              onChange={(e) => setCollectionId(e.target.value || null)}
+              className={inputClass}
+            >
+              <option value="">Personal (only you)</option>
+              {collections.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Shared: {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1">
           <label htmlFor="folder" className="text-sm font-medium">

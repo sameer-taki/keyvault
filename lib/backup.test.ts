@@ -11,6 +11,7 @@ const items: DecryptedItem[] = [
     type: "login",
     folder: "Work",
     updatedAt: "2026-06-01T00:00:00Z",
+    collectionId: null,
     content: { title: "GitHub", username: "me", password: "p@ss", url: "https://github.com", notes: "" },
   },
   {
@@ -18,6 +19,7 @@ const items: DecryptedItem[] = [
     type: "secret",
     folder: null,
     updatedAt: "2026-06-02T00:00:00Z",
+    collectionId: null,
     content: { title: "API key", value: "sk-123", notes: "prod" },
   },
 ];
