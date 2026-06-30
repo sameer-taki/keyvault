@@ -1,28 +1,16 @@
-import { UserButton } from "@clerk/nextjs";
-import { auth } from "@clerk/nextjs/server";
-import ConnectionCheck from "@/components/ConnectionCheck";
+import VaultWorkspace from "@/components/VaultWorkspace";
 
-export default async function VaultPage() {
-  const { userId } = await auth();
-
+export default function VaultPage() {
   return (
-    <main className="mx-auto max-w-3xl space-y-8 p-6">
-      <header className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
-        <div>
-          <h1 className="text-2xl font-bold">Your vault</h1>
-          <p className="text-sm text-slate-500">Signed in as {userId}</p>
-        </div>
-        <UserButton />
-      </header>
-
-      <section className="space-y-3">
-        <p className="text-slate-600 dark:text-slate-400">
-          Auth is wired up. The encrypted vault (master-password unlock + items) lands in the next
-          phases. Below is a live check that authenticated Supabase requests reach the database
-          under your identity.
+    <VaultWorkspace>
+      <div className="rounded-2xl border border-green-300 bg-green-50 p-6 text-green-900 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200">
+        <h2 className="text-lg font-semibold">Vault unlocked</h2>
+        <p className="mt-1 text-sm">
+          Your vault key is held in memory for this session only — never written to disk or sent to
+          the server. It clears automatically after {""}
+          inactivity, when you lock, or when the tab is hidden. Item management arrives next.
         </p>
-        <ConnectionCheck />
-      </section>
-    </main>
+      </div>
+    </VaultWorkspace>
   );
 }

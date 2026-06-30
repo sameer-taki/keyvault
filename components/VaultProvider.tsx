@@ -1,0 +1,172 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useSupabaseClient } from "@/lib/supabase";
+import { createProfile, fetchProfile } from "@/lib/vault-data";
+import {
+  deriveMasterKey,
+  generateVaultKey,
+  KDF_PARAMS,
+  newSalt,
+  unwrapVaultKey,
+  wrapVaultKey,
+} from "@/lib/vault-crypto";
+import type { ProfileRow } from "@/lib/database.types";
+
+/** Idle minutes before the vault auto-locks and the key is dropped from memory. */
+export const AUTO_LOCK_MINUTES = 15;
+
+export type VaultStatus = "loading" | "needs-setup" | "locked" | "unlocked" | "error";
+
+/** Thrown by unlock() when the master password fails to unwrap the vault key. */
+export class WrongMasterPasswordError extends Error {
+  constructor() {
+    super("Incorrect master password.");
+    this.name = "WrongMasterPasswordError";
+  }
+}
+
+interface VaultContextValue {
+  status: VaultStatus;
+  /** Load-time error message (not used for wrong-password, which is thrown). */
+  loadError: string | null;
+  /**
+   * The unwrapped vault key — present ONLY while unlocked, in memory ONLY.
+   * Never persist this or send it anywhere. Use it with encrypt()/decrypt().
+   */
+  vaultKey: CryptoKey | null;
+  /** First-run setup: choose a master password and create the profile. */
+  setupVault: (masterPassword: string) => Promise<void>;
+  /** Re-derive + unwrap with the master password. Throws WrongMasterPasswordError. */
+  unlock: (masterPassword: string) => Promise<void>;
+  /** Drop the vault key from memory and return to the locked screen. */
+  lock: () => void;
+}
+
+const VaultContext = createContext<VaultContextValue | null>(null);
+
+export function VaultProvider({ children }: { children: React.ReactNode }) {
+  const supabase = useSupabaseClient();
+  const [status, setStatus] = useState<VaultStatus>("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
+
+  // Load the profile on mount to decide between setup and unlock.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const row = await fetchProfile(supabase);
+        if (cancelled) return;
+        setProfile(row);
+        setStatus(row ? "locked" : "needs-setup");
+      } catch (e) {
+        if (cancelled) return;
+        setLoadError(e instanceof Error ? e.message : "Failed to load your vault profile.");
+        setStatus("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  const lock = useCallback(() => {
+    // Dropping the only reference is what makes the key unrecoverable until re-unlock.
+    setVaultKey(null);
+    setStatus((s) => (s === "needs-setup" || s === "loading" ? s : "locked"));
+  }, []);
+
+  const setupVault = useCallback(
+    async (masterPassword: string) => {
+      const salt = newSalt();
+      const masterKey = await deriveMasterKey(masterPassword, salt, KDF_PARAMS);
+      const vk = await generateVaultKey();
+      const wrapped = await wrapVaultKey(vk, masterKey);
+      const row = await createProfile(supabase, {
+        salt,
+        wrapped_vault_key: wrapped,
+        kdf: KDF_PARAMS,
+      });
+      setProfile(row);
+      setVaultKey(vk);
+      setStatus("unlocked");
+    },
+    [supabase],
+  );
+
+  const unlock = useCallback(
+    async (masterPassword: string) => {
+      if (!profile) throw new Error("No vault profile loaded.");
+      const masterKey = await deriveMasterKey(masterPassword, profile.salt, profile.kdf);
+      let vk: CryptoKey;
+      try {
+        vk = await unwrapVaultKey(profile.wrapped_vault_key, masterKey);
+      } catch {
+        // GCM auth failure === wrong master password (or tampered blob).
+        throw new WrongMasterPasswordError();
+      }
+      setVaultKey(vk);
+      setStatus("unlocked");
+    },
+    [profile],
+  );
+
+  // --- Auto-lock: idle timeout + lock when the tab is backgrounded/closed ----
+  const lockRef = useRef(lock);
+  lockRef.current = lock;
+
+  useEffect(() => {
+    if (status !== "unlocked") return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => lockRef.current(), AUTO_LOCK_MINUTES * 60_000);
+    };
+    const activity = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"] as const;
+    const onHide = () => {
+      if (document.visibilityState === "hidden") lockRef.current();
+    };
+
+    reset();
+    activity.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", () => lockRef.current());
+
+    return () => {
+      clearTimeout(timer);
+      activity.forEach((e) => window.removeEventListener(e, reset));
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, [status]);
+
+  const value = useMemo<VaultContextValue>(
+    () => ({ status, loadError, vaultKey, setupVault, unlock, lock }),
+    [status, loadError, vaultKey, setupVault, unlock, lock],
+  );
+
+  return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
+}
+
+export function useVault(): VaultContextValue {
+  const ctx = useContext(VaultContext);
+  if (!ctx) throw new Error("useVault must be used within a VaultProvider.");
+  return ctx;
+}
+
+/** Convenience for components that require an unlocked vault key. */
+export function useVaultKey(): CryptoKey {
+  const { vaultKey } = useVault();
+  if (!vaultKey) throw new Error("Vault is locked: no vault key available.");
+  return vaultKey;
+}
