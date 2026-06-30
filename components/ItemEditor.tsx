@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { VaultItemType } from "@/lib/database.types";
 import { ITEM_TYPE_LABELS, type ItemContent, type ItemDraft } from "@/lib/items";
+import { relativeTime } from "@/lib/time";
 import PasswordGenerator from "./PasswordGenerator";
 import CopyButton from "./CopyButton";
+
+/** Auto-hide a revealed secret after this long. */
+const REVEAL_MS = 20_000;
 
 type FieldKind = "text" | "password" | "textarea" | "url";
 interface FieldDef {
@@ -61,8 +65,30 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose, folders
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const hideTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const set = (key: string, value: string) => setFields((f) => ({ ...f, [key]: value }));
+
+  // Reveal a secret field, auto-hiding it again after REVEAL_MS so it doesn't
+  // stay on screen indefinitely.
+  const setRevealed = (key: string, on: boolean) => {
+    if (hideTimers.current[key]) {
+      clearTimeout(hideTimers.current[key]);
+      delete hideTimers.current[key];
+    }
+    if (on) {
+      hideTimers.current[key] = setTimeout(
+        () => setReveal((r) => ({ ...r, [key]: false })),
+        REVEAL_MS,
+      );
+    }
+    setReveal((r) => ({ ...r, [key]: on }));
+  };
+
+  useEffect(() => {
+    const timers = hideTimers.current;
+    return () => Object.values(timers).forEach(clearTimeout);
+  }, []);
 
   // Keep Tab focus within the dialog (focus trap).
   useEffect(() => {
@@ -193,7 +219,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose, folders
                 {f.kind === "password" && (
                   <button
                     type="button"
-                    onClick={() => setReveal((r) => ({ ...r, [f.key]: !r[f.key] }))}
+                    onClick={() => setRevealed(f.key, !reveal[f.key])}
                     className={iconBtn}
                     aria-label={reveal[f.key] ? "Hide value" : "Show value"}
                     title={reveal[f.key] ? "Hide" : "Show"}
@@ -224,7 +250,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose, folders
               <PasswordGenerator
                 onUse={(pw) => {
                   set(f.key, pw);
-                  setReveal((r) => ({ ...r, [f.key]: true }));
+                  setRevealed(f.key, true);
                   setGenFor(null);
                 }}
               />
@@ -250,6 +276,10 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose, folders
             ))}
           </datalist>
         </div>
+
+        {initial.updatedAt && (
+          <p className="text-xs text-slate-400">Updated {relativeTime(initial.updatedAt)}</p>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 

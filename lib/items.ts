@@ -53,6 +53,8 @@ export interface ItemDraft {
   type: VaultItemType;
   folder: string | null;
   content: ItemContent;
+  /** ISO timestamp for existing items; absent for new drafts. */
+  updatedAt?: string;
 }
 
 export const ITEM_TYPE_LABELS: Record<VaultItemType, string> = {

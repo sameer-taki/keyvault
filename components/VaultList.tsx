@@ -92,7 +92,13 @@ export default function VaultList() {
   }
 
   function openEdit(it: DecryptedItem) {
-    setEditing({ id: it.id, type: it.type, folder: it.folder, content: it.content });
+    setEditing({
+      id: it.id,
+      type: it.type,
+      folder: it.folder,
+      content: it.content,
+      updatedAt: it.updatedAt,
+    });
   }
 
   return (
@@ -180,10 +186,10 @@ export default function VaultList() {
               key={i}
               className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
             >
-              <span className="h-6 w-6 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
+              <span className="h-6 w-6 animate-pulse motion-reduce:animate-none rounded-full bg-slate-200 dark:bg-slate-700" />
               <span className="flex-1 space-y-2">
-                <span className="block h-3 w-1/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                <span className="block h-2.5 w-1/2 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <span className="block h-3 w-1/3 animate-pulse motion-reduce:animate-none rounded bg-slate-200 dark:bg-slate-700" />
+                <span className="block h-2.5 w-1/2 animate-pulse motion-reduce:animate-none rounded bg-slate-100 dark:bg-slate-800" />
               </span>
             </li>
           ))}
