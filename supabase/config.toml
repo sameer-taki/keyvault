@@ -1,0 +1,36 @@
+# Supabase local dev config. The block that matters for this project is
+# [auth.third_party.clerk] — it wires Clerk in as a native third-party auth
+# provider so the Clerk session JWT is accepted and RLS can read auth.jwt()->>'sub'.
+#
+# This is the NATIVE integration, NOT the deprecated JWT-template approach.
+# In the hosted Supabase dashboard, configure the same provider under
+# Authentication -> Sign In / Up -> Third Party Auth.
+
+project_id = "biz-key-vault"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+
+# Accept Clerk-issued JWTs. `domain` is your Clerk Frontend API domain,
+# e.g. "example.clerk.accounts.dev" (Production: your custom domain).
+# Set CLERK_DOMAIN in your shell / .env before `supabase start`.
+[auth.third_party.clerk]
+enabled = true
+domain = "env(CLERK_DOMAIN)"
