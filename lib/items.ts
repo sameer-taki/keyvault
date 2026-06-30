@@ -78,6 +78,11 @@ export function emptyContent(type: VaultItemType): ItemContent {
   }
 }
 
+/** Groups card-number digits into blocks of 4 for display ("4242 4242 …"). */
+export function groupCardDigits(digits: string): string {
+  return digits.replace(/(.{4})/g, "$1 ").trim();
+}
+
 /** Best-effort display title for list/search; falls back to the type label. */
 export function displayTitle(item: DecryptedItem): string {
   return item.content.title.trim() || `Untitled ${ITEM_TYPE_LABELS[item.type].toLowerCase()}`;

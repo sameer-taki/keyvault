@@ -32,18 +32,23 @@ export default function CopyButton({ value, sensitive, title = "Copy", className
   }
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={sensitive ? `${title} (auto-clears)` : title}
-      aria-label={title}
-      className={
-        className ??
-        "rounded-lg border border-slate-300 px-2 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
-      }
-      disabled={!value}
-    >
-      {copied ? "✓" : "⧉"}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={onClick}
+        title={sensitive ? `${title} (auto-clears)` : title}
+        aria-label={title}
+        className={
+          className ??
+          "rounded-lg border border-slate-300 px-2 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
+        }
+        disabled={!value}
+      >
+        {copied ? "✓" : "⧉"}
+      </button>
+      <span role="status" aria-live="polite" className="sr-only">
+        {copied ? "Copied to clipboard" : ""}
+      </span>
+    </>
   );
 }

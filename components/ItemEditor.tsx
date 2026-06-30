@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { VaultItemType } from "@/lib/database.types";
-import { ITEM_TYPE_LABELS, type ItemContent, type ItemDraft } from "@/lib/items";
+import { groupCardDigits, ITEM_TYPE_LABELS, type ItemContent, type ItemDraft } from "@/lib/items";
 import { relativeTime } from "@/lib/time";
 import PasswordGenerator from "./PasswordGenerator";
 import CopyButton from "./CopyButton";
@@ -212,8 +212,24 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose, folders
                   type={f.kind === "password" && !reveal[f.key] ? "password" : f.kind === "url" ? "url" : "text"}
                   autoComplete="off"
                   autoFocus={idx === 0}
-                  value={fields[f.key] ?? ""}
-                  onChange={(e) => set(f.key, e.target.value)}
+                  inputMode={
+                    initial.type === "card" && (f.key === "number" || f.key === "cvv")
+                      ? "numeric"
+                      : undefined
+                  }
+                  value={
+                    initial.type === "card" && f.key === "number"
+                      ? groupCardDigits(fields[f.key] ?? "")
+                      : (fields[f.key] ?? "")
+                  }
+                  onChange={(e) =>
+                    set(
+                      f.key,
+                      initial.type === "card" && f.key === "number"
+                        ? e.target.value.replace(/\D/g, "").slice(0, 19)
+                        : e.target.value,
+                    )
+                  }
                   className={inputClass}
                 />
                 {f.kind === "password" && (
