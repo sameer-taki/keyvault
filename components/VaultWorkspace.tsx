@@ -1,7 +1,7 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
-import { VaultProvider, useVault } from "./VaultProvider";
+import { VaultProvider, useVault, LOCK_WARNING_SECONDS } from "./VaultProvider";
 import VaultGate from "./VaultGate";
 import ThemeToggle from "./ThemeToggle";
 
@@ -15,7 +15,7 @@ export default function VaultWorkspace({ children }: { children: React.ReactNode
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const { status, lock } = useVault();
+  const { status, lock, lockWarning, keepAlive } = useVault();
 
   return (
     <div className="min-h-screen">
@@ -39,6 +39,21 @@ function Shell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto max-w-4xl px-4 py-6">
         <VaultGate>{children}</VaultGate>
       </main>
+
+      {status === "unlocked" && lockWarning && (
+        <div
+          role="alert"
+          className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-[min(90vw,28rem)] items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-700 dark:bg-amber-950/80 dark:text-amber-200"
+        >
+          <span>Locking in ~{LOCK_WARNING_SECONDS}s due to inactivity.</span>
+          <button
+            onClick={keepAlive}
+            className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 font-medium text-white hover:bg-amber-700"
+          >
+            Stay unlocked
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -31,7 +31,18 @@ export default function VaultList() {
   const [newMenu, setNewMenu] = useState(false);
   const [panel, setPanel] = useState<"health" | "backup" | "security" | null>(null);
   const [editing, setEditing] = useState<ItemDraft | null>(null);
+  const [folder, setFolder] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const folders = useMemo(
+    () => Array.from(new Set(items.map((i) => i.folder).filter((f): f is string => !!f))).sort(),
+    [items],
+  );
+
+  // Clear the folder filter if its folder disappears (e.g. last item moved/deleted).
+  useEffect(() => {
+    if (folder && !folders.includes(folder)) setFolder(null);
+  }, [folder, folders]);
 
   // "/" or Cmd/Ctrl+K focuses search (unless already typing somewhere).
   useEffect(() => {
@@ -65,9 +76,10 @@ export default function VaultList() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) => searchHaystack(it).includes(q));
-  }, [items, query]);
+    let list = folder ? items.filter((it) => it.folder === folder) : items;
+    if (q) list = list.filter((it) => searchHaystack(it).includes(q));
+    return list;
+  }, [items, query, folder]);
 
   function openNew(type: VaultItemType) {
     setNewMenu(false);
@@ -124,6 +136,15 @@ export default function VaultList() {
           )}
         </div>
       </div>
+
+      {folders.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <FolderChip label="All" active={folder === null} onClick={() => setFolder(null)} />
+          {folders.map((f) => (
+            <FolderChip key={f} label={f} active={folder === f} onClick={() => setFolder(f)} />
+          ))}
+        </div>
+      )}
 
       {panel === "health" && <HealthPanel items={items} />}
       {panel === "backup" && <BackupPanel items={items} onImport={handleImport} />}
@@ -243,6 +264,30 @@ function QuickCopies({ item }: { item: DecryptedItem }) {
     case "note":
       return null;
   }
+}
+
+function FolderChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full px-3 py-1 text-xs font-medium ${
+        active
+          ? "bg-brand-600 text-white"
+          : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+      }`}
+    >
+      {label}
+    </button>
+  );
 }
 
 function subtitle(it: DecryptedItem): string {

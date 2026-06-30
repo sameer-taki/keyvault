@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VaultItemType } from "@/lib/database.types";
 import { ITEM_TYPE_LABELS, type ItemContent, type ItemDraft } from "@/lib/items";
 import PasswordGenerator from "./PasswordGenerator";
@@ -57,8 +57,35 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
   const [genFor, setGenFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const set = (key: string, value: string) => setFields((f) => ({ ...f, [key]: value }));
+
+  // Keep Tab focus within the dialog (focus trap).
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const focusable = Array.from(
+        form.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    form.addEventListener("keydown", onKeyDown);
+    return () => form.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Escape closes the editor.
   useEffect(() => {
@@ -113,14 +140,23 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <form
+        ref={formRef}
         onSubmit={submit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="item-editor-title"
         className="my-8 w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">
+          <h2 id="item-editor-title" className="text-lg font-semibold">
             {initial.id ? "Edit" : "New"} {ITEM_TYPE_LABELS[initial.type].toLowerCase()}
           </h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-slate-400 hover:text-slate-600"
+          >
             ✕
           </button>
         </div>
@@ -156,6 +192,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
                     type="button"
                     onClick={() => setReveal((r) => ({ ...r, [f.key]: !r[f.key] }))}
                     className={iconBtn}
+                    aria-label={reveal[f.key] ? "Hide value" : "Show value"}
                     title={reveal[f.key] ? "Hide" : "Show"}
                   >
                     {reveal[f.key] ? "🙈" : "👁"}
@@ -166,6 +203,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
                     type="button"
                     onClick={() => setGenFor((g) => (g === f.key ? null : f.key))}
                     className={iconBtn}
+                    aria-label="Generate password"
                     title="Generate"
                   >
                     🎲

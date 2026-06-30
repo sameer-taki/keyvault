@@ -25,6 +25,9 @@ import type { ProfileRow } from "@/lib/database.types";
 /** Idle minutes before the vault auto-locks and the key is dropped from memory. */
 export const AUTO_LOCK_MINUTES = 15;
 
+/** How long before auto-lock to warn the user (so they can stay unlocked). */
+export const LOCK_WARNING_SECONDS = 30;
+
 export type VaultStatus = "loading" | "needs-setup" | "locked" | "unlocked" | "error";
 
 /** Thrown by unlock() when the master password fails to unwrap the vault key. */
@@ -57,6 +60,10 @@ interface VaultContextValue {
   changeMasterPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   /** Drop the vault key from memory and return to the locked screen. */
   lock: () => void;
+  /** True in the final seconds before idle auto-lock. */
+  lockWarning: boolean;
+  /** Reset the idle timer (e.g. from a "stay unlocked" action). */
+  keepAlive: () => void;
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -67,6 +74,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
+  const [lockWarning, setLockWarning] = useState(false);
 
   // Load the profile on mount to decide between setup and unlock.
   useEffect(() => {
@@ -155,38 +163,65 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     [profile, supabase],
   );
 
-  // --- Auto-lock: idle timeout + lock when the tab is backgrounded/closed ----
+  // --- Auto-lock: idle warning + timeout + lock on tab background/close -------
   const lockRef = useRef(lock);
   lockRef.current = lock;
+  const resetRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    if (status !== "unlocked") return;
+    if (status !== "unlocked") {
+      setLockWarning(false);
+      return;
+    }
 
-    let timer: ReturnType<typeof setTimeout>;
+    const total = AUTO_LOCK_MINUTES * 60_000;
+    let lockTimer: ReturnType<typeof setTimeout>;
+    let warnTimer: ReturnType<typeof setTimeout>;
     const reset = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => lockRef.current(), AUTO_LOCK_MINUTES * 60_000);
+      clearTimeout(lockTimer);
+      clearTimeout(warnTimer);
+      setLockWarning(false);
+      warnTimer = setTimeout(() => setLockWarning(true), Math.max(0, total - LOCK_WARNING_SECONDS * 1000));
+      lockTimer = setTimeout(() => lockRef.current(), total);
     };
+    resetRef.current = reset;
+
     const activity = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"] as const;
+    const onActivity = () => reset();
     const onHide = () => {
       if (document.visibilityState === "hidden") lockRef.current();
     };
+    const onPageHide = () => lockRef.current();
 
     reset();
-    activity.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    activity.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
     document.addEventListener("visibilitychange", onHide);
-    window.addEventListener("pagehide", () => lockRef.current());
+    window.addEventListener("pagehide", onPageHide);
 
     return () => {
-      clearTimeout(timer);
-      activity.forEach((e) => window.removeEventListener(e, reset));
+      clearTimeout(lockTimer);
+      clearTimeout(warnTimer);
+      activity.forEach((e) => window.removeEventListener(e, onActivity));
       document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, [status]);
 
+  const keepAlive = useCallback(() => resetRef.current(), []);
+
   const value = useMemo<VaultContextValue>(
-    () => ({ status, loadError, vaultKey, setupVault, unlock, changeMasterPassword, lock }),
-    [status, loadError, vaultKey, setupVault, unlock, changeMasterPassword, lock],
+    () => ({
+      status,
+      loadError,
+      vaultKey,
+      setupVault,
+      unlock,
+      changeMasterPassword,
+      lock,
+      lockWarning,
+      keepAlive,
+    }),
+    [status, loadError, vaultKey, setupVault, unlock, changeMasterPassword, lock, lockWarning, keepAlive],
   );
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
