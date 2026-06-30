@@ -14,6 +14,7 @@ import { useVaultItems } from "./useVaultItems";
 import ItemEditor from "./ItemEditor";
 import HealthPanel from "./HealthPanel";
 import BackupPanel from "./BackupPanel";
+import CopyButton from "./CopyButton";
 
 const TYPE_ICON: Record<VaultItemType, string> = {
   login: "🔑",
@@ -118,10 +119,13 @@ export default function VaultList() {
       ) : (
         <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
           {filtered.map((it) => (
-            <li key={it.id}>
+            <li
+              key={it.id}
+              className="flex items-center bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800"
+            >
               <button
                 onClick={() => openEdit(it)}
-                className="flex w-full items-center gap-3 bg-white px-4 py-3 text-left hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800"
+                className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left"
               >
                 <span className="text-xl" aria-hidden>
                   {TYPE_ICON[it.type]}
@@ -136,6 +140,9 @@ export default function VaultList() {
                   </span>
                 )}
               </button>
+              <div className="flex items-center gap-1 pr-2">
+                <QuickCopies item={it} />
+              </div>
             </li>
           ))}
         </ul>
@@ -156,6 +163,30 @@ export default function VaultList() {
 
 const secondaryBtn =
   "rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800";
+
+const ghostCopy =
+  "rounded-lg px-2 py-1.5 text-sm text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:opacity-30 dark:hover:bg-slate-700 dark:hover:text-slate-200";
+
+/** Type-aware quick copy buttons for a list row. */
+function QuickCopies({ item }: { item: DecryptedItem }) {
+  switch (item.type) {
+    case "login":
+      return (
+        <>
+          {item.content.username && (
+            <CopyButton value={item.content.username} title="Copy username" className={ghostCopy} />
+          )}
+          <CopyButton value={item.content.password} sensitive title="Copy password" className={ghostCopy} />
+        </>
+      );
+    case "secret":
+      return <CopyButton value={item.content.value} sensitive title="Copy secret" className={ghostCopy} />;
+    case "card":
+      return <CopyButton value={item.content.number} sensitive title="Copy card number" className={ghostCopy} />;
+    case "note":
+      return null;
+  }
+}
 
 function subtitle(it: DecryptedItem): string {
   switch (it.type) {

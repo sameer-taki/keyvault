@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { VaultItemType } from "@/lib/database.types";
 import { ITEM_TYPE_LABELS, type ItemContent, type ItemDraft } from "@/lib/items";
 import PasswordGenerator from "./PasswordGenerator";
+import CopyButton from "./CopyButton";
 
 type FieldKind = "text" | "password" | "textarea" | "url";
 interface FieldDef {
@@ -58,6 +59,15 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
   const [error, setError] = useState<string | null>(null);
 
   const set = (key: string, value: string) => setFields((f) => ({ ...f, [key]: value }));
+
+  // Escape closes the editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -153,6 +163,11 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
                     🎲
                   </button>
                 )}
+                <CopyButton
+                  value={fields[f.key] ?? ""}
+                  sensitive={f.kind === "password"}
+                  className={iconBtn}
+                />
               </div>
             )}
 
