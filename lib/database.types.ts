@@ -28,6 +28,38 @@ export type VaultItemRow = {
   folder: string | null;
   blob: CipherBlob;
   updated_at: string;
+  // Phase 6 (sharing): null for personal items.
+  org_id: string | null;
+  collection_id: string | null;
+};
+
+export type MemberPublicKeyRow = {
+  user_id: string;
+  public_key: string;
+  created_at: string;
+};
+
+export type MemberPrivateKeyRow = {
+  user_id: string;
+  wrapped_private_key: CipherBlob;
+  created_at: string;
+};
+
+export type CollectionRow = {
+  id: string;
+  org_id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type CollectionMemberRow = {
+  collection_id: string;
+  user_id: string;
+  org_id: string;
+  wrapped_collection_key: string;
+  added_by: string;
+  created_at: string;
 };
 
 export interface Database {
@@ -60,6 +92,8 @@ export interface Database {
           folder?: string | null;
           blob: CipherBlob;
           updated_at?: string;
+          org_id?: string | null;
+          collection_id?: string | null;
         };
         Update: {
           id?: string;
@@ -68,6 +102,46 @@ export interface Database {
           folder?: string | null;
           blob?: CipherBlob;
           updated_at?: string;
+          org_id?: string | null;
+          collection_id?: string | null;
+        };
+        Relationships: [];
+      };
+      member_public_keys: {
+        Row: MemberPublicKeyRow;
+        Insert: { user_id?: string; public_key: string; created_at?: string };
+        Update: { user_id?: string; public_key?: string; created_at?: string };
+        Relationships: [];
+      };
+      member_private_keys: {
+        Row: MemberPrivateKeyRow;
+        Insert: { user_id?: string; wrapped_private_key: CipherBlob; created_at?: string };
+        Update: { user_id?: string; wrapped_private_key?: CipherBlob; created_at?: string };
+        Relationships: [];
+      };
+      collections: {
+        Row: CollectionRow;
+        Insert: { id?: string; org_id: string; name: string; created_by?: string; created_at?: string };
+        Update: { id?: string; org_id?: string; name?: string; created_by?: string; created_at?: string };
+        Relationships: [];
+      };
+      collection_members: {
+        Row: CollectionMemberRow;
+        Insert: {
+          collection_id: string;
+          user_id: string;
+          org_id: string;
+          wrapped_collection_key: string;
+          added_by?: string;
+          created_at?: string;
+        };
+        Update: {
+          collection_id?: string;
+          user_id?: string;
+          org_id?: string;
+          wrapped_collection_key?: string;
+          added_by?: string;
+          created_at?: string;
         };
         Relationships: [];
       };

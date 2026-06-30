@@ -30,6 +30,8 @@ describe("item (de)serialization", () => {
       folder: "Work",
       blob,
       updated_at: "2026-06-01T00:00:00Z",
+      org_id: null,
+      collection_id: null,
     };
 
     const item = await decryptRow(row, key);

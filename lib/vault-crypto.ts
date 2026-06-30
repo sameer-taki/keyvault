@@ -214,6 +214,108 @@ export async function decrypt(blob: CipherBlob, key: CryptoKey): Promise<string>
   return new TextDecoder().decode(bytes);
 }
 
+// --- organizations & sharing (Phase 6): asymmetric key layer ----------------
+//
+// Sharing stays zero-knowledge via this hierarchy:
+//
+//   each member: RSA-OAEP keypair
+//     - public key  -> stored in the clear (used to wrap collection keys TO this member)
+//     - private key -> exported (pkcs8) and AES-GCM-encrypted under the member's VAULT key,
+//                      so only that member, once unlocked, can use it. Never stored in clear.
+//
+//   each shared collection: a random AES-GCM "collection key"
+//     - encrypts the collection's items (same encrypt()/decrypt() as personal items)
+//     - wrapped (RSA-OAEP) to EACH member's public key — one wrapped copy per member.
+//
+// The server only ever sees: public keys, wrapped (encrypted) private keys, per-member
+// wrapped collection keys, and ciphertext items. It can never derive a collection key.
+
+const RSA_PARAMS: RsaHashedKeyGenParams = {
+  name: "RSA-OAEP",
+  modulusLength: 3072,
+  publicExponent: new Uint8Array([1, 0, 1]),
+  hash: "SHA-256",
+};
+
+/** Generates a member's RSA-OAEP keypair (extractable so it can be wrapped/exported once). */
+export async function generateMemberKeypair(): Promise<CryptoKeyPair> {
+  return getCrypto().subtle.generateKey(RSA_PARAMS, true, ["encrypt", "decrypt"]);
+}
+
+/** Exports a public key (SPKI, base64) for storage and sharing. */
+export async function exportPublicKey(publicKey: CryptoKey): Promise<string> {
+  return toBase64(await getCrypto().subtle.exportKey("spki", publicKey));
+}
+
+/** Imports a public key from its base64 SPKI form (usable to wrap keys to that member). */
+export async function importPublicKey(spkiB64: string): Promise<CryptoKey> {
+  return getCrypto().subtle.importKey(
+    "spki",
+    abView(fromBase64(spkiB64)),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    true,
+    ["encrypt"],
+  );
+}
+
+/** Encrypts a member's private key under their vault key, for storage. */
+export async function wrapPrivateKey(
+  privateKey: CryptoKey,
+  vaultKey: CryptoKey,
+): Promise<CipherBlob> {
+  const pkcs8 = await getCrypto().subtle.exportKey("pkcs8", privateKey);
+  return encryptBytes(new Uint8Array(pkcs8), vaultKey);
+}
+
+/** Decrypts a member's private key with their vault key. Non-extractable, decrypt-only. */
+export async function unwrapPrivateKey(
+  wrapped: CipherBlob,
+  vaultKey: CryptoKey,
+): Promise<CryptoKey> {
+  const pkcs8 = await decryptBytes(wrapped, vaultKey);
+  return getCrypto().subtle.importKey(
+    "pkcs8",
+    abView(pkcs8),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["decrypt"],
+  );
+}
+
+/** Generates a fresh collection key (extractable so it can be wrapped to each member). */
+export async function generateCollectionKey(): Promise<CryptoKey> {
+  return getCrypto().subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+/** Wraps a collection key to a member's public key (RSA-OAEP). base64 ciphertext. */
+export async function wrapCollectionKeyForMember(
+  collectionKey: CryptoKey,
+  memberPublicKey: CryptoKey,
+): Promise<string> {
+  const raw = await getCrypto().subtle.exportKey("raw", collectionKey);
+  const ct = await getCrypto().subtle.encrypt({ name: "RSA-OAEP" }, memberPublicKey, abView(new Uint8Array(raw)));
+  return toBase64(ct);
+}
+
+/** Unwraps a collection key with the member's private key. Non-extractable, for item crypto. */
+export async function unwrapCollectionKeyWithPrivate(
+  wrappedB64: string,
+  privateKey: CryptoKey,
+): Promise<CryptoKey> {
+  const raw = await getCrypto().subtle.decrypt(
+    { name: "RSA-OAEP" },
+    privateKey,
+    abView(fromBase64(wrappedB64)),
+  );
+  return getCrypto().subtle.importKey("raw", abView(new Uint8Array(raw)), { name: "AES-GCM" }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
 // --- low-level AES-GCM (shared by wrap and item encryption) -----------------
 
 async function encryptBytes(plaintext: Uint8Array, key: CryptoKey): Promise<CipherBlob> {
