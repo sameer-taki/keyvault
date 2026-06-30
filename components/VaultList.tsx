@@ -42,6 +42,12 @@ export default function VaultList() {
       if ((e.key === "/" && !typing) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) {
         e.preventDefault();
         searchRef.current?.focus();
+      } else if (e.key === "Escape") {
+        setNewMenu(false);
+        setPanel(null);
+      } else if (e.key.toLowerCase() === "n" && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setNewMenu(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -148,9 +154,25 @@ export default function VaultList() {
           ))}
         </ul>
       ) : filtered.length === 0 ? (
-        <p className="py-8 text-center text-slate-500">
-          {items.length === 0 ? "Your vault is empty. Add your first item." : "No matches."}
-        </p>
+        items.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 py-12 text-center dark:border-slate-700">
+            <span className="text-4xl" aria-hidden>
+              🔒
+            </span>
+            <div>
+              <p className="font-medium">Your vault is empty</p>
+              <p className="text-sm text-slate-500">Add your first login, note, card, or secret.</p>
+            </div>
+            <button
+              onClick={() => openNew("login")}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              + Add your first item
+            </button>
+          </div>
+        ) : (
+          <p className="py-8 text-center text-slate-500">No matches for “{query}”.</p>
+        )
       ) : (
         <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
           {filtered.map((it) => (

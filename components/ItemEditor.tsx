@@ -69,6 +69,12 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Restore focus to whatever was focused before the editor opened (a11y).
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    return () => previouslyFocused?.focus?.();
+  }, []);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -119,7 +125,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
           </button>
         </div>
 
-        {FIELDS[initial.type].map((f) => (
+        {FIELDS[initial.type].map((f, idx) => (
           <div key={f.key} className="space-y-1">
             <label htmlFor={f.key} className="text-sm font-medium">
               {f.label}
@@ -129,6 +135,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
               <textarea
                 id={f.key}
                 rows={3}
+                autoFocus={idx === 0}
                 value={fields[f.key] ?? ""}
                 onChange={(e) => set(f.key, e.target.value)}
                 className={inputClass}
@@ -139,6 +146,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
                   id={f.key}
                   type={f.kind === "password" && !reveal[f.key] ? "password" : f.kind === "url" ? "url" : "text"}
                   autoComplete="off"
+                  autoFocus={idx === 0}
                   value={fields[f.key] ?? ""}
                   onChange={(e) => set(f.key, e.target.value)}
                   className={inputClass}
