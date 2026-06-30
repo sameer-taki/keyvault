@@ -45,9 +45,11 @@ interface Props {
   onSave: (draft: ItemDraft) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
+  /** Existing folder names, for autocomplete. */
+  folders?: string[];
 }
 
-export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props) {
+export default function ItemEditor({ initial, onSave, onDelete, onClose, folders = [] }: Props) {
   // All content fields are strings; edit as a flat record and cast on save.
   const [fields, setFields] = useState<Record<string, string>>(
     () => ({ ...(initial.content as unknown as Record<string, string>) }),
@@ -57,6 +59,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
   const [genFor, setGenFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const set = (key: string, value: string) => setFields((f) => ({ ...f, [key]: value }));
@@ -122,7 +125,6 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
 
   async function remove() {
     if (!onDelete) return;
-    if (!confirm("Delete this item? This cannot be undone.")) return;
     setBusy(true);
     setError(null);
     try {
@@ -131,6 +133,7 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete.");
       setBusy(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -236,24 +239,51 @@ export default function ItemEditor({ initial, onSave, onDelete, onClose }: Props
           <input
             id="folder"
             type="text"
+            list="folder-options"
             value={folder}
             onChange={(e) => setFolder(e.target.value)}
             className={inputClass}
           />
+          <datalist id="folder-options">
+            {folders.map((f) => (
+              <option key={f} value={f} />
+            ))}
+          </datalist>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="flex items-center justify-between pt-2">
           {onDelete ? (
-            <button
-              type="button"
-              onClick={remove}
-              disabled={busy}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
-            >
-              Delete
-            </button>
+            confirmDelete ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-red-600">Delete permanently?</span>
+                <button
+                  type="button"
+                  onClick={remove}
+                  disabled={busy}
+                  className="rounded-lg bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  Yes, delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="rounded-lg px-2 py-1.5 text-slate-500 hover:text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={busy}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
+              >
+                Delete
+              </button>
+            )
           ) : (
             <span />
           )}

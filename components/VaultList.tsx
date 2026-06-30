@@ -32,6 +32,7 @@ export default function VaultList() {
   const [panel, setPanel] = useState<"health" | "backup" | "security" | null>(null);
   const [editing, setEditing] = useState<ItemDraft | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
+  const [sort, setSort] = useState<"recent" | "title">("recent");
   const searchRef = useRef<HTMLInputElement>(null);
 
   const folders = useMemo(
@@ -78,8 +79,12 @@ export default function VaultList() {
     const q = query.trim().toLowerCase();
     let list = folder ? items.filter((it) => it.folder === folder) : items;
     if (q) list = list.filter((it) => searchHaystack(it).includes(q));
+    // `items` arrives newest-first; only re-sort for alphabetical.
+    if (sort === "title") {
+      list = [...list].sort((a, b) => displayTitle(a).localeCompare(displayTitle(b)));
+    }
     return list;
-  }, [items, query, folder]);
+  }, [items, query, folder, sort]);
 
   function openNew(type: VaultItemType) {
     setNewMenu(false);
@@ -110,6 +115,15 @@ export default function VaultList() {
         <button onClick={() => setPanel((p) => (p === "security" ? null : "security"))} className={secondaryBtn}>
           Security
         </button>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as "recent" | "title")}
+          aria-label="Sort items"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <option value="recent">Recent</option>
+          <option value="title">A–Z</option>
+        </select>
         <div className="relative">
           <button
             onClick={() => setNewMenu((v) => !v)}
@@ -230,6 +244,7 @@ export default function VaultList() {
         <ItemEditor
           key={editing.id ?? "new"}
           initial={editing}
+          folders={folders}
           onSave={saveItem}
           onDelete={editing.id ? () => removeItem(editing.id!) : undefined}
           onClose={() => setEditing(null)}
