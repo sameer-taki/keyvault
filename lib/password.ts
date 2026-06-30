@@ -35,3 +35,59 @@ export function estimateStrength(password: string): Strength {
   const labels = ["Empty", "Weak", "Fair", "Strong", "Very strong"] as const;
   return { score, label: labels[score], bits };
 }
+
+export interface GenOptions {
+  length: number;
+  lowercase: boolean;
+  uppercase: boolean;
+  numbers: boolean;
+  symbols: boolean;
+}
+
+const CLASSES = {
+  lowercase: "abcdefghijklmnopqrstuvwxyz",
+  uppercase: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  numbers: "0123456789",
+  symbols: "!@#$%^&*()-_=+[]{};:,.<>?",
+} as const;
+
+/** Cryptographically secure index in [0, max) via rejection sampling (no modulo bias). */
+function secureIndex(max: number): number {
+  const limit = Math.floor(0x100000000 / max) * max;
+  const buf = new Uint32Array(1);
+  let x: number;
+  do {
+    crypto.getRandomValues(buf);
+    x = buf[0]!;
+  } while (x >= limit);
+  return x % max;
+}
+
+/**
+ * Generates a random password from the selected character classes using the
+ * Web Crypto RNG. Guarantees at least one character from each selected class.
+ */
+export function generatePassword(opts: GenOptions): string {
+  const selected = (Object.keys(CLASSES) as (keyof typeof CLASSES)[]).filter((k) => opts[k]);
+  const pools = selected.length > 0 ? selected : (["lowercase"] as const);
+  const length = Math.max(opts.length, pools.length);
+
+  // One guaranteed character from each selected class…
+  const chars: string[] = pools.map((p) => {
+    const set = CLASSES[p];
+    return set[secureIndex(set.length)]!;
+  });
+
+  // …then fill the rest from the combined pool.
+  const all = pools.map((p) => CLASSES[p]).join("");
+  while (chars.length < length) {
+    chars.push(all[secureIndex(all.length)]!);
+  }
+
+  // Fisher–Yates shuffle so the guaranteed chars aren't always at the front.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = secureIndex(i + 1);
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
+  }
+  return chars.join("");
+}

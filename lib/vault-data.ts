@@ -4,7 +4,7 @@
  * plaintext — it moves CipherBlobs and non-secret metadata only.
  */
 import type { VaultSupabaseClient } from "./supabase";
-import type { ProfileRow } from "./database.types";
+import type { ProfileRow, VaultItemRow, VaultItemType } from "./database.types";
 import type { CipherBlob, KdfParams } from "./vault-crypto";
 
 export interface NewProfile {
@@ -28,4 +28,52 @@ export async function createProfile(
   const { data, error } = await supabase.from("profiles").insert(input).select("*").single();
   if (error) throw error;
   return data;
+}
+
+export interface ItemWrite {
+  type: VaultItemType;
+  folder: string | null;
+  blob: CipherBlob;
+}
+
+/** Lists the current user's encrypted items, newest first. */
+export async function listItems(supabase: VaultSupabaseClient): Promise<VaultItemRow[]> {
+  const { data, error } = await supabase
+    .from("vault_items")
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Inserts a new encrypted item. */
+export async function createItem(
+  supabase: VaultSupabaseClient,
+  input: ItemWrite,
+): Promise<VaultItemRow> {
+  const { data, error } = await supabase.from("vault_items").insert(input).select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+/** Updates an existing encrypted item (updated_at is refreshed by a DB trigger). */
+export async function updateItem(
+  supabase: VaultSupabaseClient,
+  id: string,
+  input: ItemWrite,
+): Promise<VaultItemRow> {
+  const { data, error } = await supabase
+    .from("vault_items")
+    .update(input)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Deletes an item by id (RLS ensures it must be the caller's own row). */
+export async function deleteItem(supabase: VaultSupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from("vault_items").delete().eq("id", id);
+  if (error) throw error;
 }
